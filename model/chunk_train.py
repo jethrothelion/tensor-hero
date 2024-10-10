@@ -126,13 +126,13 @@ def main():
         # ---------------------------------------------------------------------------- #
         #                              INITIAL PARAMETERS                              #
         # ---------------------------------------------------------------------------- #
-        
+        print(Path.cwd() / 'fag')
         params = {
             'training_data' : 'train separated',     # CHANGEME (these parameters must be changed each experiment)
-            'model_name' : 'model12',                # CHANGEME
+            'model_name' : 'test',                # CHANGEME
             'optimizer' : 'Adam',                    # CHANGEME (maybe not this one, but you do have to fill it in manually)
-            'train_path' : Path.cwd().parent / 'Training_Data' / 'training_ready' / 'train',
-
+            'train_path' : Path.cwd() / 'Training Data' / 'training_ready' / 'train',
+            
             'num_epochs' : 500,
             'batch_size' : 12,
             'shuffle' : True,

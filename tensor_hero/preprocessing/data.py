@@ -96,19 +96,37 @@ def __check_for_sub_packs(unprocessed_path):
     '''
     sub_packs = []
     for track_pack in os.listdir(unprocessed_path):
+        track_pack_path = unprocessed_path / track_pack
+        print(f"Checking track_pack: {track_pack_path}")
+
+        #returns audio end folder nomatter the level it is
         if track_pack in ['Thumbs.db', '.DS_Store']:
             continue
-        for sub_pack in os.listdir(unprocessed_path / track_pack):
+        if not os.path.isdir(track_pack_path):
+            continue
+        if track_pack[:4] == (".ogg", ".mp3", ".opus"):
+            sub_packs.append(track_pack_path)
+
+        for sub_pack in os.listdir(track_pack_path):
+            sub_pack_path = track_pack_path / sub_pack
+            print(f"  Checking sub_pack: {sub_pack_path}")
+
             if sub_pack in ['Thumbs.db', '.DS_Store']:
                 continue
-            for song in os.listdir(unprocessed_path / track_pack / sub_pack):
-                if song in ['Thumbs.db', '.DS_Store']:
+            if not os.path.isdir(sub_pack_path):
+                continue
+            if sub_pack[:4] == (".ogg", ".mp3", ".opus"):
+                sub_packs.append(sub_pack_path)
+
+            contains_sub_packs = False
+            for item in os.listdir(sub_pack_path):
+                item_path = sub_pack_path / item
+                print(f"    Checking item: {item_path}")
+
+                if item in ['Thumbs.db', '.DS_Store']:
                     continue
-                if os.path.isdir(unprocessed_path / track_pack / sub_pack / song):
-                    sub_packs.append(unprocessed_path / track_pack)
-                    break
-                break
-            break
+                if item[:4] == (".ogg", ".mp3", ".opus"):
+                    sub_packs.append(item_path)
     return sub_packs
 
 def __pop_sub_packs(sub_packs):
@@ -168,18 +186,18 @@ def populate_processed_folder(unprocessed_data_path, processed_data_path, REPLAC
             track_pack_ = Path(dirName).parent.stem
             continue
 
+        print(Path(dirName).stem + "in the middle")
+        print(Path(dirName).parent.stem + "in the end") 
+        print(unprocessed_data_path)
         track_pack_ = Path(dirName).parent.stem     # track pack name
         song_ = Path(dirName).stem                  # song name
         
-        if TRACK_PACKS:
-            processed_path = processed_data_path / track_pack_ / song_          # processed song folder
-            unprocessed_path = unprocessed_data_path / track_pack_ / song_      # unprocessed song folder
-        else:
-            processed_path = processed_data_path / track_pack_ / song_          # processed song folder
-            unprocessed_path = unprocessed_data_path / song_      # unprocessed song folder
+     
+        processed_path = processed_data_path / track_pack_ / song_          # processed song folder
+        unprocessed_path = unprocessed_data_path / song_      # unprocessed song folder
         processed_song_path = processed_path / 'spectrogram.npy'            # spectrogram
         processed_notes_path = processed_path / 'notes.npy'                 # notes array
-
+        print(unprocessed_path, "faggitit")
         audio_file_name = __get_audio_file_name(fileList)
         unprocessed_song_path = unprocessed_path / audio_file_name
         
@@ -212,8 +230,8 @@ def populate_processed_folder(unprocessed_data_path, processed_data_path, REPLAC
                 print(traceback.format_exc()) 
             wrong_format_charts.append(unprocessed_song_path)
             if processed_path.exists():
-                # if len(os.listdir(processed_path)) == 0: # If the folder exists but is empty
-                os.rmdir(processed_path)
+                if len(os.listdir(processed_path)) == 0: # If the folder exists but is empty
+                    os.rmdir(processed_path)
             continue
         except:
             print('{}, {} .chart file is in the wrong format, skipping'.format(track_pack_, song_))
@@ -222,8 +240,8 @@ def populate_processed_folder(unprocessed_data_path, processed_data_path, REPLAC
                 print(traceback.format_exc())
             wrong_format_charts.append(unprocessed_song_path)
             if processed_path.exists():
-                # if len(os.listdir(processed_path)) == 0: # If the folder exists but is empty
-                os.rmdir(processed_path)
+                if len(os.listdir(processed_path)) == 0: # If the folder exists but is empty
+                    os.rmdir(processed_path)
             continue
         
         # Check if song has already been processed
@@ -241,8 +259,8 @@ def populate_processed_folder(unprocessed_data_path, processed_data_path, REPLAC
                     print(traceback.format_exc()) 
                 wrong_format_charts.append(unprocessed_song_path)
                 if processed_path.exists():
-                    # if len(os.listdir(processed_path)) == 0: # If the folder exists but is empty
-                    os.rmdir(processed_path)
+                    if len(os.listdir(processed_path)) == 0: # If the folder exists but is empty
+                        os.rmdir(processed_path)
                 continue
         # Check if notes have already been processed
         if processed_notes_path.exists():

@@ -14,6 +14,8 @@ def chart2tensor(path, print_release_notes=False):
     Inputs a path to a chart and returns a tensor with 10ms ticks as indices and one hot
     representation as values.
     '''
+    notestr = str(Path)
+    print(notestr +"and fS")
     coded_notes = chart2onehot(path, print_release_notes)
 
     if coded_notes == None:
@@ -36,7 +38,7 @@ def chart2dict(path):
         - time_signatures
         - BPMs
     '''
-
+    print("chart2dick")
     # Read chart into array
     try:
         with open(path, 'r') as file:
@@ -167,6 +169,8 @@ def shift_ticks(notes, song_metadata, time_signatures, BPMs):
     # Split the song into bins corresponding to particular time signatures and BPMs
     
     # First, assemble some lists from the preprocessing step
+    notestr = str(notes)
+    print(notestr +"and fagihnieh")
     note_keys = list(zip(notes['tick'], notes['N_S'], 
                     notes['note'], notes['duration']))                    # (tick, 'N_S', note)
     TS_events = list(zip(time_signatures['tick'], time_signatures['TS']))  # (tick, TS)
@@ -427,6 +431,9 @@ def chart2onehot(path, print_release_notes=False):
                             bumped due to coincidence with the start of new notes.
     '''
     notes, song_metadata, time_signatures, BPMs = chart2dict(path)
+
+    notestr = str(notes)
+    print(notestr +"and sashsah")
     notes = shift_ticks(notes, song_metadata, time_signatures, BPMs)
 
     if notes == None:  # If the chart file is not in .chart format

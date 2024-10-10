@@ -18,8 +18,8 @@ def compute_mel_spectrogram(song_path):
         -   log-scale, so max(spec) = 0, min(spec) = -80
     '''
     audio, sr = librosa.load(str(song_path))
-    resampled = librosa.resample(audio, sr, 44100)
-    spec = librosa.feature.melspectrogram(resampled, 44100, n_fft=2048*2, hop_length=441, n_mels=512, power=2, fmax = sr/2)
+    resampled = librosa.resample(y=audio, orig_sr=sr,target_sr=44100)
+    spec = librosa.feature.melspectrogram(y=resampled, n_fft=2048*2, hop_length=441, n_mels=512, power=2, fmax = sr/2)
     spec = librosa.power_to_db(spec, ref=np.max)
     return spec
 
