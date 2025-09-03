@@ -287,7 +287,7 @@ def m1_song_preprocessing(song_path):
     spec = (spec+80)/80  # normalize
 
     # Populate full spectrogram
-    full_spec = np.zeros(shape=(int(spec.shape[1]/400), 512, 400))
+    full_spec = np.zeros(shape=(int(spec.shape[1]/400), spec.shape[0], 400))
     assert (spec.shape[1]/400)%1 < 1e-8, 'Error: Spectrogram has been padded to the wrong length'
     for i in range(int(spec.shape[1]/400)):
         full_spec[i,...] = spec[:,(i*400):((i+1)*400)]
