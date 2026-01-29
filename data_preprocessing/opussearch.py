@@ -14,4 +14,4 @@ def delete_folders_with_opus(root_dir):
 # Replace 'root_directory_path' with the path to the root directory where you want to start
 root_directory_path = os.path.join(os.path.dirname(__file__), "Unprocessed")
 
-delete_folders_with_opus(root_directory_path)s
+delete_folders_with_opus(root_directory_path)

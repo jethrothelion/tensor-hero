@@ -303,7 +303,7 @@ def get_list_of_ogg_files(unprocessed_path, prefix = None):
                     continue
             else:
                 for f in os.listdir(song_dir):
-                    if f.endswith('.ogg'):
+                    if f.endswith('.ogg' or'.wav' or '.mp4'):
                         if prefix is not None:
                             if f.startswith(prefix):
                                 ogg_file_paths.append(song_dir / f)
