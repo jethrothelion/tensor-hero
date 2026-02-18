@@ -39,7 +39,7 @@ def chart2dict(path):
 
     # Read chart into array
     try:
-        with open(path, 'r') as file:
+        with open(path, 'r', encoding='utf-8', errors='ignore') as file:
             raw_chart = file.readlines()
         file.close()
     except Exception as err:  # This will happen when the chart is not in .chart format
@@ -49,7 +49,7 @@ def chart2dict(path):
 
     # Strip lines of \n character
     for i in range(len(raw_chart)):
-        raw_chart[i] = raw_chart[i].replace('\n', '')
+        raw_chart[i] = raw_chart[i].rstrip()
 
     # Create lists to hold sections of the chart file
     song = []
@@ -427,10 +427,11 @@ def chart2onehot(path, print_release_notes=False):
                             bumped due to coincidence with the start of new notes.
     '''
     notes, song_metadata, time_signatures, BPMs = chart2dict(path)
-    notes = shift_ticks(notes, song_metadata, time_signatures, BPMs)
 
     if notes == None:  # If the chart file is not in .chart format
         return None
+
+    notes = shift_ticks(notes, song_metadata, time_signatures, BPMs)
 
     # Create a dictionary where the keys are the tick values and the values
     # are a list of notes corresponding to the data

@@ -9,7 +9,7 @@ sys.path.insert(1, str(Path.cwd()))
 import os
 from tensor_hero.preprocessing.data import populate_processed_folder, populate_with_simplified_notes
 
-repo_root = Path.cwd().parent
+repo_root = Path(r"E:/")
 unprocessed_path = repo_root / 'Training_Data'
 processed_path = repo_root / 'Training_Data' / 'Processed' / 'fully_curated'
 print(unprocessed_path)

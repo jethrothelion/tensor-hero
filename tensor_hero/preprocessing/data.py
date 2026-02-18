@@ -59,10 +59,17 @@ def __get_audio_file_name(file_list):
     - str: name of audio file, if present
         - does not include full path, only stem
     '''
+    print(file_list)
     for track in file_list:
         if track.endswith('.ogg') or track.endswith('.mp3') or track.endswith('.wav'):
             return track
     raise NameError('Error: audio file not present')
+
+def __get_chart_file_name(file_list):
+    for track in file_list:
+        if track.endswith('.chart'):
+            return track
+    raise NameError('Error: .chart file not present')
 
 def __match_tensor_lengths(notes_array, song):
     '''
@@ -158,6 +165,7 @@ def populate_processed_folder(unprocessed_data_path, processed_data_path, REPLAC
         __pop_sub_packs(sub_packs)
 
     wrong_format_charts = []    # Holds paths to charts not in .chart format
+    missing_files = []          # Holds paths to folders missing a audio or chart file
     multiple_audio_songs = []   # Holds paths to charts with multiple audio files
     processed = []              # Holds paths to song folders that were successfully processed
     song_size = 0               # Total audio data size, in gigabytes
@@ -180,7 +188,21 @@ def populate_processed_folder(unprocessed_data_path, processed_data_path, REPLAC
         processed_song_path = processed_path / 'spectrogram.npy'            # spectrogram
         processed_notes_path = processed_path / 'notes.npy'                 # notes array
 
-        audio_file_name = __get_audio_file_name(fileList)
+        try:
+            audio_file_name = __get_audio_file_name(fileList)
+        except Exception as e:
+            print(f'Skipping {track_pack_}/{song_}: {e}')
+            missing_files.append(dirName)
+            continue
+
+        try:
+            chart_file_name = __get_chart_file_name(fileList)
+        except Exception as e:
+            print(f'Skipping {track_pack_}/{song_}: {e}')
+            missing_files.append(dirName)
+            continue
+
+
         unprocessed_song_path = unprocessed_path / audio_file_name
         
         if REPLACE_NOTES:
@@ -204,7 +226,7 @@ def populate_processed_folder(unprocessed_data_path, processed_data_path, REPLAC
 
         # Create note array for song
         try:
-            notes_array = np.array(chart2tensor(unprocessed_path / 'notes.chart', print_release_notes = False)).astype(int)
+            notes_array = np.array(chart2tensor(unprocessed_path / str(chart_file_name), print_release_notes = False)).astype(int)
         except TypeError as err:
             print('{}, {} .chart file is in the wrong format, skipping'.format(track_pack_, song_))
             if PRINT_TRACEBACK:
@@ -268,7 +290,7 @@ def populate_processed_folder(unprocessed_data_path, processed_data_path, REPLAC
                  'song_size': song_size,
                  'notes_size': notes_size}
 
-    return data_info
+    return data_info, missing_files
 
 def get_list_of_ogg_files(unprocessed_path, prefix = None):
     '''
@@ -629,7 +651,6 @@ def preprocess_transformer_data(segment_length, training_data_path, train_val_te
         print(f'made directory {str(test_path)}')
         
     if not SEPARATED:
-        # _, processed_list = get_list_of_ogg_files(unprocessed_path)
         processed_path = training_data_path
         processed_list = []
         for x in [processed_path / x for x in os.listdir(processed_path)]:
@@ -647,6 +668,7 @@ def preprocess_transformer_data(segment_length, training_data_path, train_val_te
 
     for i in tqdm(range(len(processed_list))):
         # Process spectrogram
+        print("loop")
         try:
             spec = np.load(spec_paths[i])
         except FileNotFoundError:
