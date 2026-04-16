@@ -170,11 +170,12 @@ def populate_processed_folder(unprocessed_data_path, processed_data_path, REPLAC
     processed = []              # Holds paths to song folders that were successfully processed
     song_size = 0               # Total audio data size, in gigabytes
     notes_size = 0              # Total note data size, in gigabytes
-   
+
+
+    for dirpath, dirnames, filenames in tqdm(os.walk(unprocessed_path)):
+
     for dirName, _, fileList in tqdm(os.walk(unprocessed_data_path)):  # Walk through training data directory
-        if not fileList or fileList in [['.DS_Store'], ['Thumbs.db']]:
-            track_pack_ = Path(dirName).parent.stem
-            continue
+
 
         track_pack_ = Path(dirName).parent.stem     # track pack name
         song_ = Path(dirName).stem                  # song name
@@ -292,49 +293,44 @@ def populate_processed_folder(unprocessed_data_path, processed_data_path, REPLAC
 
     return data_info, missing_files
 
-def get_list_of_ogg_files(unprocessed_path, prefix = None):
+def get_list_of_ogg_files(unprocessed_path, prefixes = ["guitar", "seperated"]):
     '''
     Takes the root directory (unprocessed_path) and returns a list of the full file paths
-    to all the .ogg files in that directory, provided there is only one audio file per folder (i.e. it
-    skips folders that have source separated music files). Also returns processed_paths, the "processed"
+    to all the .ogg, .wav, .mp4 files in that directory, Also returns processed_paths, the "processed"
     directory analog to each item in ogg_file_paths (just a path to the folder, not the files inside).
-    
-    A vast majority of the training data is .ogg, in the future it might be useful to expand this to
-    .wav and .mp3 as well.
 
+    if multiple audio files looks for files that start with the prefixes with the default prefixes are guitar
+    and seperated
     ~~~~ ARGUMENTS ~~~~
     -   unprocessed_path (Path): path object or string to root unprocessed folder. probably ./Training Data/Unprocessed
-    -   prefix (str or None): if string, will look for a specific prefix on the .ogg (e.g. "separated.ogg")
+    -   prefixes (list of str or None): list of strings to look for if a folder has multiple audio files (e.g. ["guitar", "bass"])
 
     ~~~~ RETURNS ~~~~
-    -   ogg_file_paths (list of Path): list of paths to all .ogg files in unprocessed_path
+    -   ogg_file_paths (list of Path): list of paths to all audio files in unprocessed_path
     -   processed_paths (list of Path): list of paths to the processed folders corresponding to every item
                                         in ogg_file_paths.  
     '''
     ogg_file_paths = []
     processed_paths = []
-    for track_pack in [unprocessed_path / x for x in os.listdir(unprocessed_path)]:
-        # Ignore DS_Store if running on mac
-        if 'DS_Store' in str(track_pack):
-            continue
-        for song_dir in [track_pack / y for y in os.listdir(track_pack)]:
-            if 'DS_Store' in str(song_dir):
-                continue
-            if prefix is None:
-                if __check_multiple_audio_files(os.listdir(song_dir)): # Check for multiple audio files
-                    continue
-            else:
-                for f in os.listdir(song_dir):
-                    if f.endswith('.ogg' or'.wav' or '.mp4'):
-                        if prefix is not None:
-                            if f.startswith(prefix):
-                                ogg_file_paths.append(song_dir / f)
-                                processed_paths.append(Path(str(song_dir).replace('Unprocessed', 'Processed', 1)))
-                        else:
-                            ogg_file_paths.append(song_dir / f)
-                            processed_paths.append(Path(str(song_dir).replace('Unprocessed', 'Processed', 1)))
-                        
+
+    for dirpath, dirnames, filenames in tqdm(os.walk(unprocessed_path)):
+
+        for file in filenames:
+            if file.endswith(('.ogg', '.wav', '.mp4')):# IMPORTANT DOUBLE PRENTHESES SO PASS seperatly
+                if __check_multiple_audio_files(dirpath):
+                    if prefixes is not None:
+                        for prefix in prefixes:
+                            if file.startswith(prefix):
+                                ogg_file_paths.append(os.path.join(dirpath, file))
+                                processed_paths.append(Path(str(dirpath).replace('Unprocessed', 'Processed', 1)))
+                                break
+
+                else:
+                    ogg_file_paths.append(os.path.join(dirpath, file))
+                    processed_paths.append(Path(str(dirpath).replace('Unprocessed', 'Processed', 1)))
+
     return ogg_file_paths, processed_paths
+
 
 def populate_processed_folder_with_spectrograms(unprocessed_path, spectrogram_name = 'spectrogram.npy', REPLACE=True):
     '''
@@ -408,7 +404,7 @@ def __remove_modifiers(notes_array):
             new_notes[x] = simplified_note_dict[notes_array[x]]
     return new_notes
 
-def populate_with_simplified_notes(processed_directory, SUB_PACKS=False):
+def populate_with_simplified_notes(processed_directory):
     '''
     Takes all the processed notes arrays (notes.npy) in processed_directory and adds simplified versions 
     (notes_simplified.npy) to the same subdirectories.
@@ -418,66 +414,31 @@ def populate_with_simplified_notes(processed_directory, SUB_PACKS=False):
     ~~~~ ARGUMENTS ~~~~
     - processed_directory (Path): Path to processed training data directory (probably ./Training Data/Processed)
     '''
-    
-    # Parse through directory
-    for x in tqdm(os.listdir(processed_directory)):
-        # Check to see if the .DS_Store file is in the directory, skip if so
-        if '.DS_Store' in x:
-            continue
-        if SUB_PACKS:
-            for y in os.listdir(processed_directory / x):
-                # Check to see if the simplified file already exists, continue if so
-                if os.path.isfile(processed_directory / x / y / 'notes_simplified.npy'):
-                    continue
 
+    for dirpath, dirnames, filenames in tqdm(os.walk(processed_directory)):
+
+        for file in filenames:
+            if file == "notes_simplified.npy":
+                continue
+
+            if file == "notes.npy":
                 try:
-                    notes_array = np.load(processed_directory / x / y / 'notes.npy')
+                    notes_array = np.load(os.path.join(dirpath, file))
                 except FileNotFoundError:
-                    print('Error: There is no notes.npy file at {}'.format(str(processed_directory / x / y)))
+                    print('Error: There is no notes.npy file at {}'.format(os.path.join(dirpath,"notes.npy")))
                     print('Continuing')
                     continue
                 except NotADirectoryError as err:
                     print('ERROR: {}'.format(err))
-                    if str(y) == '.DS_Store':
-                        print('DS_Store error, continuing')
-                        continue
-                    else:
-                        break
 
                 new_notes = __remove_release_keys(notes_array)
                 new_notes = __remove_modifiers(new_notes)
 
                 # Save to same directory
-                with open(str(processed_directory / x / y / 'notes_simplified.npy'), 'wb') as f:
+                with open(os.path.join(dirpath, 'notes_simplified.npy'), 'wb') as f:
                     np.save(f, new_notes)
                 f.close()
-        else:
-            
-            # Check to see if the simplified file already exists, continue if so
-            if os.path.isfile(processed_directory / x / 'notes_simplified.npy'):
-                continue
 
-            try:
-                notes_array = np.load(processed_directory / x / 'notes.npy')
-            except FileNotFoundError:
-                print('Error: There is no notes.npy file at {}'.format(str(processed_directory / x)))
-                print('Continuing')
-                continue
-            except NotADirectoryError as err:
-                print('ERROR: {}'.format(err))
-                if str(y) == '.DS_Store':
-                    print('DS_Store error, continuing')
-                    continue
-                else:
-                    break
-
-            new_notes = __remove_release_keys(notes_array)
-            new_notes = __remove_modifiers(new_notes)
-
-            # Save to same directory
-            with open(str(processed_directory / x / 'notes_simplified.npy'), 'wb') as f:
-                np.save(f, new_notes)
-            f.close()
 
 
 # ---------------------------------------------------------------------------- #
@@ -570,7 +531,7 @@ def __prepare_notes_tensor(notes):
     notes = __formatted_notes_to_indices(notes)
     return notes
 
-def preprocess_transformer_data(segment_length, training_data_path, train_val_test_probs, model_training_directory_name, COLAB=False, SEPARATED=True):
+def preprocess_transformer_data(spec_name, segment_length, training_data_path, train_val_test_probs, model_training_directory_name, COLAB=False):
     '''
     Takes a directory of processed song level training data and slices each song into 4 second segments.
     Processed folder should already exist with simplified notes
@@ -613,6 +574,8 @@ def preprocess_transformer_data(segment_length, training_data_path, train_val_te
         |----val
     
     ~~~~ ARGUMENTS ~~~~
+    - Spec_name (str):
+        - the name of the desiered spectrograms
     - segment_length (int): 
         - The number of elements in the time dimension of the notes arrays and spectrograms (typically 400)
         - Each element corresponds to 10ms of time
@@ -626,8 +589,6 @@ def preprocess_transformer_data(segment_length, training_data_path, train_val_te
     - COLAB (bool): 
         - If True, segments training data so folders do not exceed 40 total files
         - This is necessary because COLAB does not work well with directories with large numbers of files
-    - SEPARATED (bool):
-        - If True, will seek out separated spectrograms (spectrogram_separated.npy) instead of unseparated ones
     '''
     assert sum(train_val_test_probs) == 1, 'ERROR: train_val_test_probs does not sum to 1'
     
@@ -649,26 +610,20 @@ def preprocess_transformer_data(segment_length, training_data_path, train_val_te
     if not os.path.isdir(test_path):
         os.mkdir(test_path)
         print(f'made directory {str(test_path)}')
-        
-    if not SEPARATED:
-        processed_path = training_data_path
-        processed_list = []
-        for x in [processed_path / x for x in os.listdir(processed_path)]:
-            if os.path.exists(x / 'spectrogram.npy') and os.path.exists(x / 'notes_simplified.npy'):
-                processed_list.append(x)
-    else:
-        _, processed_list = get_list_of_ogg_files(unprocessed_path, prefix='separated')
-    
-    # Get paths of notes and corresponding paths of spectrograms
-    if not SEPARATED:
-        spec_paths = [song / 'spectrogram.npy' for song in processed_list]
-    else:
-        spec_paths = [song / 'spectrogram_separated.npy' for song in processed_list]
+
+    processed_path = training_data_path
+    processed_list = []
+    for root, dirs, files in os.walk(processed_path):
+        for file in files:
+            if file.__contains__('spectrogram.npy') or file.__contains__('notes_simplified.npy'):
+                processed_list.append(Path(root))
+
+
+    spec_paths = [song / 'spectrogram.npy' for song in processed_list]
     notes_paths = [song / 'notes_simplified.npy' for song in processed_list]
 
     for i in tqdm(range(len(processed_list))):
         # Process spectrogram
-        print("loop")
         try:
             spec = np.load(spec_paths[i])
         except FileNotFoundError:
