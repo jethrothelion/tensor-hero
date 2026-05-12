@@ -6,6 +6,10 @@ import traceback
 from tqdm import tqdm
 import numpy as np
 import math
+
+from Data_PreProccessing import is_audio_file
+
+from Prototyping.audio_preprocessing.preprocess_audio import unprocessed_song_path
 from tensor_hero.preprocessing.chart import chart2tensor
 from tensor_hero.preprocessing.audio import compute_mel_spectrogram
 from tensor_hero.preprocessing.resources.resources import simplified_note_dict
@@ -138,7 +142,7 @@ def __pop_sub_packs(sub_packs):
             shutil.rmtree(sub_pack)
 
 def populate_processed_folder(unprocessed_data_path, processed_data_path, REPLACE_NOTES = False,
-                              PRINT_TRACEBACK=True, SUB_PACKS=False, TRACK_PACKS=True):
+                              PRINT_TRACEBACK=True):
     '''
     Converts raw downloaded Clone Hero data into processed spectrograms and notes arrays.
     Populates processed_data_path by processing data in unprocessed_data_path.
@@ -148,9 +152,7 @@ def populate_processed_folder(unprocessed_data_path, processed_data_path, REPLAC
     - processed_data_path (Path): empty directory where processed data should be placed
     - REPLACE_NOTES (bool): if True, will replace any existing notes_arrays and spectrograms in processed
     - PRINT_TRACEBACK (bool): if True, will print full traceback when excepted errors are thrown
-    - SUB_PACKS (bool): if True, will check for sub-packs within the parent unprocessed_data_path
-    - TRACK_PACKS (bool): if True, file structure expects the unprocessed folder contains track packs
-    
+
     ~~~~ RETURNS ~~~~
     - dict: metadata about processed data
         - 'wrong_format_charts' (list of Path): list of unprocessed song paths with .chart files in wrong format
@@ -159,10 +161,6 @@ def populate_processed_folder(unprocessed_data_path, processed_data_path, REPLAC
         - 'song_size' (float): spectrogram data size in GB
         - 'notes_size' (float): notes arrays data size in GB
     '''
-    # Extract songs from sub-packs, if the track pack includes sub-packs
-    if SUB_PACKS:
-        sub_packs = __check_for_sub_packs(unprocessed_data_path)
-        __pop_sub_packs(sub_packs)
 
     wrong_format_charts = []    # Holds paths to charts not in .chart format
     missing_files = []          # Holds paths to folders missing a audio or chart file
@@ -172,74 +170,80 @@ def populate_processed_folder(unprocessed_data_path, processed_data_path, REPLAC
     notes_size = 0              # Total note data size, in gigabytes
 
 
-    for dirpath, dirnames, filenames in tqdm(os.walk(unprocessed_path)):
+    for dirpath, dirnames, filenames in tqdm(os.walk(unprocessed_data_path)):
+        current_audio_file = None
 
-    for dirName, _, fileList in tqdm(os.walk(unprocessed_data_path)):  # Walk through training data directory
+        #renamed for readability
+        unprocessed_path = Path(dirpath)
 
-
-        track_pack_ = Path(dirName).parent.stem     # track pack name
-        song_ = Path(dirName).stem                  # song name
-        
-        if TRACK_PACKS:
-            processed_path = processed_data_path / track_pack_ / song_          # processed song folder
-            unprocessed_path = unprocessed_data_path / track_pack_ / song_      # unprocessed song folder
-        else:
-            processed_path = processed_data_path / track_pack_ / song_          # processed song folder
-            unprocessed_path = unprocessed_data_path / song_      # unprocessed song folder
-        processed_song_path = processed_path / 'spectrogram.npy'            # spectrogram
-        processed_notes_path = processed_path / 'notes.npy'                 # notes array
 
         try:
-            audio_file_name = __get_audio_file_name(fileList)
+            current_audio_file = __get_audio_file_name(filenames)
         except Exception as e:
-            print(f'Skipping {track_pack_}/{song_}: {e}')
-            missing_files.append(dirName)
-            continue
+            if dirpath != str(unprocessed_data_path):
+                print(f'Skipping {dirpath}: {e}')
+                missing_files.append(dirpath)
+                continue
 
         try:
-            chart_file_name = __get_chart_file_name(fileList)
+            chart_file_name = __get_chart_file_name(filenames)
         except Exception as e:
-            print(f'Skipping {track_pack_}/{song_}: {e}')
-            missing_files.append(dirName)
+            print(f'Skipping {dirpath}: {e}')
+            missing_files.append(dirpath)
             continue
 
 
-        unprocessed_song_path = unprocessed_path / audio_file_name
-        
+        '''
+               for file in filenames:
+            if is_audio_file(os.path.join(dirpath, file)):
+                unprocessed_song_path = dirpath
+                current_audio_file = file
+        '''
+
+        relative_dir = unprocessed_path.relative_to(unprocessed_data_path)
+        processed_path = processed_data_path / relative_dir
+
+        processed_song_path = processed_path / 'spectrogram.npy'  # spectrogram
+        processed_notes_path = processed_path / 'notes.npy'  # notes array
+
+        unprocessed_song_path = unprocessed_path / current_audio_file
+
         if REPLACE_NOTES:
             if processed_notes_path.exists():
-                os.remove(processed_notes_path)  # Delete because I accidentally saved the same array hundreds of times lol
+                os.remove(
+                    processed_notes_path)  # Delete because I accidentally saved the same array hundreds of times lol
 
         # Skip creating the directory if there is more than one audio file
         # (some songs are divided into guitar.ogg, drums.ogg, etc.)
-        if __check_multiple_audio_files(fileList):
+        if __check_multiple_audio_files(filenames):
             multiple_audio_songs.append(unprocessed_song_path)
             if processed_path.exists():
-                if len(os.listdir(processed_path)) == 0: # If the folder exists but is empty
+                if len(os.listdir(processed_path)) == 0:  # If the folder exists but is empty
                     os.rmdir(processed_path)
             continue
 
         # Make folder for directory in 'Processed' if it doesn't already exist
         if not processed_path.parent.exists():
-            os.mkdir(processed_path.parent)
+            processed_path.parent.mkdir(parents=True, exist_ok=True)
         if not processed_path.exists():
             os.mkdir(processed_path)
 
         # Create note array for song
         try:
-            notes_array = np.array(chart2tensor(unprocessed_path / str(chart_file_name), print_release_notes = False)).astype(int)
+            notes_array = np.array(
+                chart2tensor(unprocessed_path / str(chart_file_name), print_release_notes=False)).astype(int)
         except TypeError as err:
-            print('{}, {} .chart file is in the wrong format, skipping'.format(track_pack_, song_))
+            print(f'.chart file is in the wrong format, skipping{unprocessed_song_path}')
             if PRINT_TRACEBACK:
                 print("Type Error: {0}".format(err))
-                print(traceback.format_exc()) 
+                print(traceback.format_exc())
             wrong_format_charts.append(unprocessed_song_path)
             if processed_path.exists():
                 # if len(os.listdir(processed_path)) == 0: # If the folder exists but is empty
                 os.rmdir(processed_path)
             continue
         except:
-            print('{}, {} .chart file is in the wrong format, skipping'.format(track_pack_, song_))
+            print(f'.chart file is in the wrong format, skipping{unprocessed_song_path}')
             if PRINT_TRACEBACK:
                 print('Unknown Error: {0}'.format(sys.exc_info()[0]))
                 print(traceback.format_exc())
@@ -248,7 +252,7 @@ def populate_processed_folder(unprocessed_data_path, processed_data_path, REPLAC
                 # if len(os.listdir(processed_path)) == 0: # If the folder exists but is empty
                 os.rmdir(processed_path)
             continue
-        
+
         # Check if song has already been processed
         # If it has, load it, because the notes array will be matched to its length
         if processed_song_path.exists():
@@ -259,9 +263,9 @@ def populate_processed_folder(unprocessed_data_path, processed_data_path, REPLAC
                 song = compute_mel_spectrogram(unprocessed_song_path)
                 np.save(processed_song_path, song)
             except:
-                print('{}, {} .chart file is in the wrong format, skipping'.format(track_pack_, song_))
+                print(f'.chart file is in the wrong format, skipping{unprocessed_song_path}')
                 if PRINT_TRACEBACK:
-                    print(traceback.format_exc()) 
+                    print(traceback.format_exc())
                 wrong_format_charts.append(unprocessed_song_path)
                 if processed_path.exists():
                     # if len(os.listdir(processed_path)) == 0: # If the folder exists but is empty
@@ -279,7 +283,6 @@ def populate_processed_folder(unprocessed_data_path, processed_data_path, REPLAC
                 print('notes_array shape:', notes_array.shape)
                 print('spectrogram shape:', song.shape)
                 continue
-            
 
         song_size += (processed_song_path.stat().st_size) / 1e9
         notes_size += (processed_notes_path.stat().st_size) / 1e9
