@@ -6,15 +6,12 @@ import traceback
 from tqdm import tqdm
 import numpy as np
 import math
-
-from Data_PreProccessing import is_audio_file
-
-from Prototyping.audio_preprocessing.preprocess_audio import unprocessed_song_path
 from tensor_hero.preprocessing.chart import chart2tensor
 from tensor_hero.preprocessing.audio import compute_mel_spectrogram
 from tensor_hero.preprocessing.resources.resources import simplified_note_dict
 __release_keys = list(np.arange(187, 218))
 __release_keys.append(224)
+audio_formats = ['.mp3', '.wav', '.ogg']
 
 '''
 Contains functions related to...
@@ -65,9 +62,18 @@ def __get_audio_file_name(file_list):
     '''
     print(file_list)
     for track in file_list:
+        if track.endswith('guitar.ogg'):
+            return track
+        if track.endswith('combinned'):
+            return track
         if track.endswith('.ogg') or track.endswith('.mp3') or track.endswith('.wav'):
             return track
     raise NameError('Error: audio file not present')
+
+def __is_audio_file(filepath):
+    if filepath.endswith('.ogg') or filepath.endswith('.mp3') or filepath.endswith('.wav'):
+        return True
+    return False
 
 def __get_chart_file_name(file_list):
     for track in file_list:
@@ -172,7 +178,6 @@ def populate_processed_folder(unprocessed_data_path, processed_data_path, REPLAC
 
     for dirpath, dirnames, filenames in tqdm(os.walk(unprocessed_data_path)):
         current_audio_file = None
-
         #renamed for readability
         unprocessed_path = Path(dirpath)
 
@@ -181,14 +186,14 @@ def populate_processed_folder(unprocessed_data_path, processed_data_path, REPLAC
             current_audio_file = __get_audio_file_name(filenames)
         except Exception as e:
             if dirpath != str(unprocessed_data_path):
-                print(f'Skipping {dirpath}: {e}')
+                print(f'Skipping folder [Missing Audio] -> {dirpath}: {e}')
                 missing_files.append(dirpath)
                 continue
 
         try:
             chart_file_name = __get_chart_file_name(filenames)
         except Exception as e:
-            print(f'Skipping {dirpath}: {e}')
+            print(f'Skipping folder [Missing Chart] -> {dirpath}: {e}')
             missing_files.append(dirpath)
             continue
 
@@ -213,14 +218,10 @@ def populate_processed_folder(unprocessed_data_path, processed_data_path, REPLAC
                 os.remove(
                     processed_notes_path)  # Delete because I accidentally saved the same array hundreds of times lol
 
-        # Skip creating the directory if there is more than one audio file
-        # (some songs are divided into guitar.ogg, drums.ogg, etc.)
-        if __check_multiple_audio_files(filenames):
-            multiple_audio_songs.append(unprocessed_song_path)
-            if processed_path.exists():
-                if len(os.listdir(processed_path)) == 0:  # If the folder exists but is empty
-                    os.rmdir(processed_path)
-            continue
+        if processed_path.exists():
+            if len(os.listdir(processed_path)) == 0:  # If the folder exists but is empty
+                os.rmdir(processed_path)
+
 
         # Make folder for directory in 'Processed' if it doesn't already exist
         if not processed_path.parent.exists():
