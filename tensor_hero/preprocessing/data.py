@@ -6,6 +6,7 @@ import traceback
 from tqdm import tqdm
 import numpy as np
 import math
+import gc
 from tensor_hero.preprocessing.chart import chart2tensor
 from tensor_hero.preprocessing.audio import compute_mel_spectrogram
 from tensor_hero.preprocessing.resources.resources import simplified_note_dict
@@ -62,9 +63,11 @@ def __get_audio_file_name(file_list):
     '''
     print(file_list)
     for track in file_list:
-        if track.endswith('guitar.ogg'):
+        if 'combinned' in track:
             return track
-        if track.endswith('combinned'):
+        if 'guitar' in track:
+            return track
+        if 'rhythm' in track:
             return track
         if track.endswith('.ogg') or track.endswith('.mp3') or track.endswith('.wav'):
             return track
@@ -148,7 +151,7 @@ def __pop_sub_packs(sub_packs):
             shutil.rmtree(sub_pack)
 
 def populate_processed_folder(unprocessed_data_path, processed_data_path, REPLACE_NOTES = False,
-                              PRINT_TRACEBACK=True):
+                              PRINT_TRACEBACK=True, QUICK_CHECK = True):
     '''
     Converts raw downloaded Clone Hero data into processed spectrograms and notes arrays.
     Populates processed_data_path by processing data in unprocessed_data_path.
@@ -212,6 +215,14 @@ def populate_processed_folder(unprocessed_data_path, processed_data_path, REPLAC
         processed_notes_path = processed_path / 'notes.npy'  # notes array
 
         unprocessed_song_path = unprocessed_path / current_audio_file
+
+        print(f"working on {str(dirpath)}")
+
+        if QUICK_CHECK and not REPLACE_NOTES and processed_song_path.exists() and processed_notes_path.exists():
+            print('{} audio and notes have already been processed, skipping.'.format(processed_song_path.stem))
+            song_size += (processed_song_path.stat().st_size) / 1e9
+            notes_size += (processed_notes_path.stat().st_size) / 1e9
+            continue
 
         if REPLACE_NOTES:
             if processed_notes_path.exists():
@@ -287,6 +298,12 @@ def populate_processed_folder(unprocessed_data_path, processed_data_path, REPLAC
 
         song_size += (processed_song_path.stat().st_size) / 1e9
         notes_size += (processed_notes_path.stat().st_size) / 1e9
+
+    if 'song' in locals():
+        del song
+    if 'notes_array' in locals():
+        del notes_array
+    gc.collect()
 
     # create dict of data information
     data_info = {'wrong_format_charts': wrong_format_charts,
