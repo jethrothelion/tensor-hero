@@ -1,9 +1,35 @@
 import os
 from pathlib import Path
 import shutil
+import subprocess
+from pydub import AudioSegment
+import gc
+
+'''
+This file fully prepares data for training. Make sure to back up all your songs before this if you want to play them aswell.
+Recommended to run in order and also need to follow the Unprocessed Processed directory scheme
+After this run Transformerdata_PreProccessing.py
+'''
+
+#CHANGE THIS MAYBE
+training_path = Path(r'/run/media/jethr/14c35d99-a19c-4ff1-aef6-062f745f5d0e/linux keep/keep/Test trainign data/')
+Unprocessed_directory_path = (training_path / "Unprocessed")
+
+#MAY NEED TO CHANGE DEPENDING ON IF ITS SET AS A PATH VARIABLE OR NOT
+FFMPEGPATH = r"ffmpeg"
+
+#!!! CHANGE TO THE LOCATION OF YOUR MID2CHART APPLCATION
+executable_path = Path(r"/home/jethr/Downloads/mid2chart/mid2chart.exe")
+
+##!! CHANGE THIS POSSIBLY !!##
+keep_midi = True
+
+#deletes the files that were combined
+delete_seperate_files = False
 
 
-##moving function
+##1st Move all folders to top level ##note this needs to be refined, ESPICALLLY THE CHECK FOR DUPLICATE FOLDER
+
 global count
 global songcount
 songcount = 0
@@ -75,7 +101,7 @@ def process_folders(base_folder):
 
     for dirpath, dirnames, files in os.walk(base_folder, topdown=False):
 
-        if any("chart" in str(filename).lower() or "mid" in str(filename).lower() for filename in files):
+        if any(str(filename).lower().endswith(('.chart', '.mid', '.midi')) for filename in files):
             songcount += 1
 
         #renamed for readability
@@ -92,24 +118,18 @@ def process_folders(base_folder):
     delete_empty_folders(base_folder)
 
 if __name__ == "__main__":
-    #CHANGE THIS MAYBE
-    training_path = Path(r'D:\soon to be training data') / "Unprocessed"
-
-    if training_path.exists():
-        print(f"Processing: {training_path}")
-        process_folders(training_path)
+    if Unprocessed_directory_path.exists():
+        print(f"Processing: {Unprocessed_directory_path}")
+        process_folders(Unprocessed_directory_path)
         print(f"Moved {count} folders")
         print(f"Found {songcount} songs")
     else:
-        print(f"Path not found: {training_path}")
+        print(f"Path not found: {Unprocessed_directory_path}")
+        exit()
 
 
-###2nd
+##2nd Search for and convert any songs in opus format
 
-from pathlib import Path
-
-#MAY NEED TO CHANGE DEPENDING ON IF ITS SET AS A PATH VARIABLE OR NOT
-FFMPEGPATH = r"D:\ffmpeg-2024-05-06-git-96449cfeae-essentials_build\ffmpeg-2024-05-06-git-96449cfeae-essentials_build\bin\ffmpeg.exe"
 global count
 count = 0
 
@@ -141,23 +161,13 @@ def delete_folders_with_opus(root_dir):
                     print(f"An error eccored in converting to wav, {file_path}: {e}")
 
 if __name__ == "__main__":
-    # Replace 'root_directory_path' with the path to the root directory where you want to start
-    root_directory_path = Path(r'D:\soon to be training data') / "Unprocessed"# os.path.join(os.path.dirname(__file__), "Unprocessed")
-
-    delete_folders_with_opus(root_directory_path)
+    delete_folders_with_opus(Unprocessed_directory_path)
     print(f"we converted {count} opus files")
 
 
-##3rd convert midi to clone hero .chart
+##3rd Convert midi to clone hero .charts ##ADD CHECK IF GOES THROUGH
 
-import subprocess
-import os
-from pathlib import Path
-import shutil
-
-##!! CHANGE THIS POSSIBLY !!##
-keep_midi = True
-
+sucCount = 0
 
 def run_exe_with_file(exe_path, file_path):
     """
@@ -166,6 +176,8 @@ def run_exe_with_file(exe_path, file_path):
     Args:
         exe_path (str): The path to the executable (.exe) file.
         file_path (str): The path to the file you want to "drop" onto the exe.
+
+    Returns True if the executable ran, False if it didnt
     """
 
     # Ensure paths are absolute and correctly formatted for the OS
@@ -186,6 +198,7 @@ def run_exe_with_file(exe_path, file_path):
 
         print("Executable ran successfully.")
         print("-" * 20)
+        return True
 
     except FileNotFoundError:
         print(f"Error: The executable was not found at {full_exe_path}")
@@ -193,15 +206,14 @@ def run_exe_with_file(exe_path, file_path):
         print(f"Error: Executable failed with return code {e.returncode}")
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
+    return False
 
-
-#!!! CHANGE TO THE LOCATION OF YOUR MID2CHART APPLCATION
-executable_path = Path(r"D:\mid2chart\mid2chart.exe")
 
 count = 0
-# Function to recursively search and delete directories containing .opus files
+# Function to recursively search for midis in folders with no .chart and convert them
 def search_for_midi(root_dir):
     global count
+    global sucCount
 
     for dirpath, dirnames, filenames in os.walk(root_dir, topdown=False):
         if any (filename.lower().endswith('.chart') for filename in filenames):
@@ -216,33 +228,31 @@ def search_for_midi(root_dir):
                 full_file_path = os.path.join(dirpath, filename)
 
                 # Run the exe with this specific file
-                run_exe_with_file(executable_path, full_file_path)
+                success = run_exe_with_file(executable_path, full_file_path)
+                if success:
+                    sucCount+=1
                 if keep_midi == False:
                     os.remove(full_file_path)
 
 
-# maybe replace 'root_directory_path' with the path to the root directory where you want the search to start
-root_directory_path = Path(r"D:\soon to be training data\Unprocessed")
-
 if __name__ == "__main__":
-    search_for_midi(root_directory_path)
+    search_for_midi(Unprocessed_directory_path)
     print(f"There was {count} midi files without a chart that was attempted to be converted")
+    print(f"{sucCount} successes")
+    failCount = count - sucCount
+    print(f"{failCount} failures")
 
 
-##check for mutliple audio tracks and layer
-from pydub import AudioSegment
-import  os
-from pathlib import Path
-import gc
+##4th Layer sepperated songs
 
 #!!!!! NEED CHANGE TO YOUR FFMPEG PATH
-os.environ["PATH"] += os.pathsep + r"D:\ffmpeg-2024-05-06-git-96449cfeae-essentials_build\bin"
-
-#deletes the files that were combined
-delete_seperate_files = False
+#os.environ["PATH"] += os.pathsep + r"D:\ffmpeg-2024-05-06-git-96449cfeae-essentials_build\bin"
 
 
 def is_audio_file(filename):
+    # This stops Python from reading invisible metadata files like '._guitar.ogg'.
+    if filename.startswith('.'):
+        return False
     return filename.lower().endswith(('.ogg', '.mp3', '.wav'))
 
 count = 0
@@ -255,144 +265,70 @@ def layer_tracks(folder_path):
         dir_path = Path(dirpath)
         audio_files = []
         guitar_files = []
-
+        files_to_combine = []
+        combined = None
 
         for file in filenames:
             if is_audio_file(file):
+                if str(file).__contains__("combinned") or str(file).__contains__("preview"):
+                    continue
                 audio_files.append(dir_path / file)
-            if 'guitar' in file.lower():
-                guitar_files.append(dir_path / file)
+
+                if 'guitar' in file.lower(): #or 'rhythm' in file.lower():
+                    guitar_files.append(dir_path / file)
 
         if len(audio_files) == 0:
             continue
 
         # Decide which files to combine
-        if len(guitar_files) > 1:
-            files_to_combine = guitar_files
-            print(f"Found {len(guitar_files)} guitar tracks, combining those")
-        elif len(audio_files) > 1:
-            files_to_combine = audio_files
-            print(f"No multiple guitar tracks found, combining all {len(audio_files)} audio files")
+        if len(audio_files) > 1:
+            if len(guitar_files) > 1:
+                files_to_combine = guitar_files
+                print(f"Found {len(guitar_files)} guitar tracks: {[f.name for f in guitar_files]}, combining those")
+            elif len(guitar_files) == 0 and len(audio_files) > 1 :
+                files_to_combine = audio_files
+                print(f"No guitar tracks found, combining all {len(audio_files)} audio files")
         else:
             print(f"Not enough audio files to combine in {dir_path}")
             continue
 
-        combined = AudioSegment.from_file(str(files_to_combine[0]))
-        print(f"Processing folder: {dir_path} ({len(files_to_combine)} audio files found)")
+        if len(files_to_combine) != 0:
+            print(f"Processing folder: {dir_path} ({len(files_to_combine)} audio files found)")
 
-        try:
-            for file in files_to_combine[1:]:
-                audio_segment = AudioSegment.from_file(str(file))
-                combined = combined.overlay(audio_segment)
+            try:
+                combined = AudioSegment.from_file(str(files_to_combine[0]))
+                for file in files_to_combine[1:]:
+                    audio_segment = AudioSegment.from_file(str(file))
+                    combined = combined.overlay(audio_segment)
 
-            # Export the combined file #misspled on purpose not to be in the pervious list of files
-            output_path = dir_path / 'combinned.ogg'
-            combined.export(str(output_path), format="ogg")
-            print(f"--> Saved combined file to: {output_path}")
+                # Export the combined file #misspled on purpose not to be in the pervious list of files
+                output_path = dir_path / 'combinned.ogg'
+                combined.export(str(output_path), format="ogg")
+                print(f"--> Saved combined file to: {output_path}")
 
-            del combined
-            del audio_segment
+                del combined
+                if 'audio_segment' in locals():
+                    del audio_segment
 
-            ##Stop ffmpeg from lingering and stoping the download
-            gc.collect()
+                ##Stop ffmpeg from lingering and stoping the download
+                gc.collect()
 
-            #Delete original files
-            if delete_seperate_files == True:
-                for file in files_to_combine:
-                    try:
-                        os.remove(str(file))
-                    except Exception as e:
-                        print(f"Error in removing {file}: {e}")
+                #Delete original files
+                if delete_seperate_files == True:
+                    for file in files_to_combine:
+                        try:
+                            os.remove(str(file))
+                        except Exception as e:
+                            print(f"Error in removing {file}: {e}")
 
-            count += 1
+                count += 1
 
 
-        except Exception as e:
-            print(f"Error processing {audio_files}: {e}")
+            except Exception as e:
+                print(f"Error processing {audio_files}: {e}")
 
 
 
 if __name__ == "__main__":
-    folder_path = Path(r"D:\soon to be training data\Unprocessed")
-    layer_tracks(folder_path)
+    layer_tracks(Unprocessed_directory_path)
     print(f"we just layerd {count} tracks togeather")
-
-
-##4 convert to spectrogram
-
-'''
-Takes raw, unprocessed data and processes expert .chart files into a specified processed folder
-'''
-
-# To process the training data, we will use the populated_processed_folder()
-from pathlib import Path
-import os
-from tensor_hero.preprocessing.data import populate_processed_folder, populate_with_simplified_notes
-
-#change to current project directory !!
-folder_path = Path(r"D:\soon to be training data")
-#repo_root = Path.cwd()
-unprocessed_path = folder_path / 'Training Data' / 'Unprocessed'
-processed_path = folder_path / 'Training Data' / 'Processed'
-
-assert (os.path.isdir(unprocessed_path)), 'ERROR: Wrong directory: you should have a unprocessed folder in this directory that is already \ncleaned up. make sure to run prior scripts'
-if not os.path.isdir(processed_path):
-    print("Creating Proccessed folder")
-    os.makedirs(processed_path, exist_ok=True)
-
-print('\nPOPULATING PROCESSED FOLDER WITH RAW DATA')
-populate_processed_folder(unprocessed_path, processed_path, REPLACE_NOTES=False, PRINT_TRACEBACK=True)
-
-
-
-print('\nPOPULATING PROCESSED FOLDER WITH SIMPLIFIED NOTES')
-populate_with_simplified_notes(processed_path)
-
-##split spectrogram to 4 second increments
-'''
-Once 1_preprocess_training_data.py has been run, this script will further process the data
-to be ready for the transformer model.
-'''
-
-import os
-from pathlib import Path
-import sys
-sys.path.insert(1, str(Path.cwd()))
-from tensor_hero.preprocessing.data import preprocess_transformer_data
-
-segment_length = 400
-training_data_path = Path(r"D:\soon to be training data\Training Data\Processed\Unprocessed")
-#training_data_path = Path.cwd() / 'Training_Data' / 'Processed' / 'fully_curated'
-train_val_test_probs = [0.95, 0.05, 0]
-
-#folder to put model
-model_training_directory_name = 'fully_curated_colab'
-full_path = training_data_path / model_training_directory_name
-
-if not os.path.exists(full_path):
-    os.mkdir(full_path)
-
-
-# # If training w/ colab:
-# model_training_directory_name = 'colab_training_data'
-# preprocess_transformer_data(segment_length,
-                            # training_data_path,
-                            # train_val_test_probs,
-                            # model_training_directory_name,
-                            # COLAB=True)
-
-# If not training w/ colab:
-# model_training_directory_name = 'colab_training_data'
-# preprocess_transformer_data(segment_length,
-                            # training_data_path,
-                            # train_val_test_probs,
-                            # model_training_directory_name,
-                            # COLAB=True)
-
-# For generating source separated colab data:
-preprocess_transformer_data('spectrogram.npy',
-                            segment_length,
-                            training_data_path,
-                            train_val_test_probs,
-                            model_training_directory_name,
-                            COLAB=True)
